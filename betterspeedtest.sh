@@ -22,9 +22,7 @@
 
 # Summarize the contents of the ping's output file to show min, avg, median, max, etc.
 #   input parameter ($1) file contains the output of the ping command
-
 summarize_pings() {     
-  
   # Process the ping times, and summarize the results
   # grep to keep lines that have "time=", then sed to isolate the time stamps, and sort them
   # awk builds an array of those values, and prints first & last (which are min, max) 
@@ -62,27 +60,22 @@ summarize_pings() {
 }
 
 # Print a line of dots as a progress indicator.
-
 print_dots() {
-  while : ; do
+  while true; do
     printf "."
     sleep 1s
   done
 }
 
 # Stop the current print_dots() process
-
 kill_dots() {
-  # echo "Pings: $ping_pid Dots: $dots_pid"
   kill -9 "$dots_pid"
   wait "$dots_pid" 2>/dev/null
   dots_pid=0
 }
 
 # Stop the current ping process
-
 kill_pings() {
-  # echo "Pings: $ping_pid Dots: $dots_pid"
   kill -9 "$ping_pid" 
   wait "$ping_pid" 2>/dev/null
   ping_pid=0
@@ -97,36 +90,26 @@ kill_pings_and_dots_and_exit() {
   exit 1
 }
 
-# ------------ start_pings() ----------------
 # Start printing dots, then start a ping process, saving the results to a PINGFILE
-
 start_pings() {
-
   # Create temp file
   PINGFILE=$(mktemp /tmp/measurepings.XXXXXX) || exit 1
 
   # Start dots
   print_dots &
   dots_pid=$!
-  # echo "Dots PID: $dots_pid"
 
   # Start Ping
-  if [ "$TESTPROTO" -eq "-4" ]
-  then
+  if [ "$TESTPROTO" -eq "-4" ]; then
     "${PING4}"  "$PINGHOST" > "$PINGFILE" &
   else
     "${PING6}"	"$PINGHOST" > "$PINGFILE" &
   fi
   ping_pid=$!
-  # echo "Ping PID: $ping_pid"
-
 }
 
-# ------------ Measure speed and ping latency for one direction ----------------
-#
-# Call measure_direction() with single parameter - "Download" or "  Upload"
-#   The function gets other info from globals determined from command-line arguments
-
+# Call measure_direction() with single parameter - "Download", "Upload", or "Idle"
+# The function gets other info from globals determined from command-line arguments
 measure_direction() {
   DIRECTION=$1
 
@@ -147,20 +130,16 @@ measure_direction() {
     # Start $MAXSESSIONS datastreams between netperf client and the netperf server
     # netperf writes the sole output value (in Mbps) to stdout when completed
     netperf_pids=""
-    for _ in $( seq "$MAXSESSIONS" )
-    do
+    for _ in $( seq "$MAXSESSIONS" ); do
       netperf "$TESTPROTO" -H "$TESTHOST" -t $dir -l "$TESTDUR" -v 0 -P 0 >> "$SPEEDFILE" &
       netperf_pids="${netperf_pids:+${netperf_pids} }$!"
-      # echo "Starting PID $! params: $TESTPROTO -H $TESTHOST -t $dir -l $TESTDUR -v 0 -P 0 >> $SPEEDFILE"
     done
 
     # Start off the ping process
     start_pings
     
     # Wait until each of the background netperf processes completes 
-    for pid in $netperf_pids
-    do
-      #echo "Waiting for $i"
+    for pid in $netperf_pids; do
       wait "$pid"
     done
 
@@ -177,9 +156,9 @@ measure_direction() {
 }
 
 # ------- Start of the main routine --------
-
+#
 # Usage: sh betterspeedtest.sh [ -4 -6 ] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [ -i ] [ -n simultaneous-sessions ]
-
+#
 # “H” and “host” DNS or IP address of the netperf server host (default: netperf.bufferbloat.net)
 # “t” and “time” Time to run the test in each direction (default: 60 seconds)
 # “p” and “ping” Host to ping for latency measurements (default: gstatic.com)
@@ -198,11 +177,8 @@ PINGHOST="gstatic.com"
 MAXSESSIONS="5"
 TESTPROTO="-4"
 
-# read the options
-
 # extract options and their arguments into variables.
-while [ $# -gt 0 ] 
-do
+while [ $# -gt 0 ]; do
     case "$1" in
       -4|-6) TESTPROTO=$1 ; shift 1 ;;
       -H|--host)
@@ -230,10 +206,8 @@ do
     esac
 done
 
-# Start the main test
-
-if [ "$TESTPROTO" -eq "-4" ]
-then
+# Start the main test\
+if [ "$TESTPROTO" -eq "-4" ]; then
   PROTO="ipv4"
 else
   PROTO="ipv6"
