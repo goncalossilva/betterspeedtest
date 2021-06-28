@@ -134,9 +134,6 @@ measure_direction() {
   # Create temp file
   SPEEDFILE=$(mktemp /tmp/netperfUL.XXXXXX) || exit 1
   DIRECTION=$1
-  
-  # start off the ping process
-  start_pings
 
   # Start netperf with the proper direction
   if [ "$DIRECTION" = "Download" ]; then
@@ -154,6 +151,9 @@ measure_direction() {
     netperf_pids="${netperf_pids:+${netperf_pids} }$!"
     # echo "Starting PID $! params: $TESTPROTO -H $TESTHOST -t $dir -l $TESTDUR -v 0 -P 0 >> $SPEEDFILE"
   done
+
+  # start off the ping process
+  start_pings
   
   # Wait until each of the background netperf processes completes 
   for pid in $netperf_pids
