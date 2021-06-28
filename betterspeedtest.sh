@@ -147,20 +147,19 @@ measure_direction() {
   
   # Start $MAXSESSIONS datastreams between netperf client and the netperf server
   # netperf writes the sole output value (in Mbps) to stdout when completed
-  for i in $( seq "$MAXSESSIONS" )
+  netperf_pids=""
+  for _ in $( seq "$MAXSESSIONS" )
   do
     netperf "$TESTPROTO" -H "$TESTHOST" -t $dir -l "$TESTDUR" -v 0 -P 0 >> "$SPEEDFILE" &
+    netperf_pids="${netperf_pids:+${netperf_pids} }$!"
     # echo "Starting PID $! params: $TESTPROTO -H $TESTHOST -t $dir -l $TESTDUR -v 0 -P 0 >> $SPEEDFILE"
   done
   
   # Wait until each of the background netperf processes completes 
-  # echo "Process is $$"
-  # echo `pgrep -P $$ netperf `
-
-  for i in $(pgrep -P $$ netperf )   # gets a list of PIDs for child processes named 'netperf'
+  for pid in $netperf_pids
   do
     #echo "Waiting for $i"
-    wait "$i"
+    wait "$pid"
   done
 
   # Print TCP Download speed
