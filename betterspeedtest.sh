@@ -185,7 +185,7 @@ PINGHOST="gstatic.com"
 MAXSESSIONS="5"
 TESTPROTO="-4"
 
-# extract options and their arguments into variables.
+# Extract options and their arguments into variables.
 while [ $# -gt 0 ]; do
     case "$1" in
       -4|-6) TESTPROTO=$1 ; shift 1 ;;
