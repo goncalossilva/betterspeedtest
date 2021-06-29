@@ -21,7 +21,6 @@
 # GPLv2
 
 # Summarize the contents of the ping's output file to show min, avg, median, max, etc.
-#   input parameter ($1) file contains the output of the ping command
 summarize_pings() {     
   # Process the ping times, and summarize the results
   # grep to keep lines that have "time=", then sed to isolate the time stamps, and sort them
@@ -29,9 +28,9 @@ summarize_pings() {
   # and computes average.
   # If the number of samples is >= 10, also computes median, and 10th and 90th percentile readings
 
-  # stop pinging and drawing dots
+  # stop pinging and spinner
   kill_pings
-  kill_dots
+  kill_spinner
 
   # shellcheck disable=SC1004
   sed 's/^.*time=\([^ ]*\) ms/\1/' < "$1" | grep -v "PING" | sort -n | \
@@ -51,7 +50,7 @@ summarize_pings() {
       {   ix=int(numrows/10); pc10=arr[ix]; ix=int(numrows*9/10);pc90=arr[ix]; \
         if (numrows%2==1) med=arr[(numrows+1)/2]; else med=(arr[numrows/2]); \
       }; \
-      printf("\n  Latency: (in msec, %d pings, %4.2f%% packet loss)\n      Min: %4.3f \n    10pct: %4.3f \n   Median: %4.3f \n      Avg: %4.3f \n    90pct: %4.3f \n      Max: %4.3f\n", numrows, pktloss, arr[1], pc10, med, sum/numrows, pc90, arr[numrows] )\
+      printf(" Latency: (in msec, %d pings, %4.2f%% packet loss)\n     Min: %4.3f \n   10pct: %4.3f \n  Median: %4.3f \n     Avg: %4.3f \n   90pct: %4.3f \n     Max: %4.3f\n", numrows, pktloss, arr[1], pc10, med, sum/numrows, pc90, arr[numrows] )\
      }'
 
   # and finally remove the PINGFILE
@@ -59,22 +58,24 @@ summarize_pings() {
 
 }
 
-# Print a line of dots as a progress indicator.
-print_dots() {
+# Print a spinner as a progress indicator.
+print_spinner() {
   while true; do
-    printf "."
-    sleep 1s
+    for c in / - \\ \|; do
+      printf "%s\b" "$c"
+      sleep 1
+    done
   done
 }
 
-# Stop the current print_dots() process
-kill_dots() {
-  kill -9 "$dots_pid"
-  wait "$dots_pid" 2>/dev/null
-  dots_pid=0
+# Stop the current print_spinner() process
+kill_spinner() {
+  kill -9 "$spinner_pid"
+  wait "$spinner_pid" 2>/dev/null
+  spinner_pid=0
 }
 
-# Stop the current ping process
+# Stop the current start_pings() process
 kill_pings() {
   kill -9 "$ping_pid" 
   wait "$ping_pid" 2>/dev/null
@@ -83,9 +84,9 @@ kill_pings() {
 
 # Stop the current pings and dots, and exit
 # ping command catches (and handles) first Ctrl-C, so you have to hit it again...
-kill_pings_and_dots_and_exit() {
-  kill_dots
+kill_pings_and_spinner_and_exit() {
   kill_pings
+  kill_spinner
   printf "\nStopped\n"
   exit 1
 }
@@ -95,9 +96,9 @@ start_pings() {
   # Create temp file
   PINGFILE=$(mktemp /tmp/measurepings.XXXXXX) || exit 1
 
-  # Start dots
-  print_dots &
-  dots_pid=$!
+  # Start spinner
+  print_spinner &
+  spinner_pid=$!
 
   # Start Ping
   if [ "$TESTPROTO" -eq "-4" ]; then
@@ -144,8 +145,7 @@ measure_direction() {
     done
 
     # Print speed
-    echo ""
-    awk -v dir="$(printf %8.8s "$DIRECTION")" '{s+=$1} END {printf " %s: %1.2f Mbps", dir, s}' < "$SPEEDFILE"
+    awk -v dir="$(printf %8.8s "$direction")" '{s+=$1} END {printf " \n%s: %1.2f Mbps\n", dir, s}' < "$speed_file"
 
     # Remove temp file
     rm "$SPEEDFILE"
@@ -206,7 +206,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Start the main test\
+# Start the main test
 if [ "$TESTPROTO" -eq "-4" ]; then
   PROTO="ipv4"
 else
@@ -215,7 +215,7 @@ fi
 DATE=$(date "+%Y-%m-%d %H:%M:%S")
 
 # Catch a Ctl-C and stop the pinging and the print_dots
-trap kill_pings_and_dots_and_exit HUP INT TERM
+trap kill_pings_and_spinner_and_exit HUP INT TERM
 
 echo "$DATE Testing against $TESTHOST ($PROTO) with $MAXSESSIONS sessions while pinging $PINGHOST ($TESTDUR seconds while idle and in each direction)"
 measure_direction "Idle"
