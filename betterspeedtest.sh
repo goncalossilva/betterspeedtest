@@ -33,7 +33,7 @@ summarize_pings() {
   kill_spinner
 
   # shellcheck disable=SC1004
-  sed 's/^.*time=\([^ ]*\) ms/\1/' < "$1" | grep -v "PING" | sort -n | \
+  sed 's/^.*time=\([^ ]*\) ms/\1/' < "$PING_FILE" | grep -v "PING" | sort -n | \
   awk 'BEGIN {numdrops=0; numrows=0;} \
     { \
       if ($0 ~ /timeout/) { \
@@ -62,9 +62,8 @@ summarize_pings() {
       printf(" Latency: (in msec, %d pings, %4.2f%% packet loss)\n     Min: %4.3f \n   10pct: %4.3f \n  Median: %4.3f \n     Avg: %4.3f \n   90pct: %4.3f \n     Max: %4.3f\n", numrows, pktloss, arr[1], pc10, med, sum/numrows, pc90, arr[numrows] )\
      }'
 
-  # and finally remove the PINGFILE
-  rm "$1"
-
+  # and finally remove the PING_FILE
+  rm "$PING_FILE"
 }
 
 # Print a spinner as a progress indicator.
@@ -100,10 +99,10 @@ kill_pings_and_spinner_and_exit() {
   exit 1
 }
 
-# Start printing dots, then start a ping process, saving the results to a PINGFILE
+# Start printing dots, then start a ping process, saving the results to PING_FILE
 start_pings() {
   # Create temp file
-  PINGFILE=$(mktemp /tmp/measurepings.XXXXXX) || exit 1
+  PING_FILE=$(mktemp /tmp/ping.XXXXXX) || exit 1
 
   # Start spinner
   print_spinner &
@@ -111,9 +110,9 @@ start_pings() {
 
   # Start Ping
   if [ "$TESTPROTO" -eq "-4" ]; then
-    "${PING4}"  "$PINGHOST" > "$PINGFILE" &
+    "${PING4}" "$PINGHOST" > "$PING_FILE" &
   else
-    "${PING6}"	"$PINGHOST" > "$PINGFILE" &
+    "${PING6}" "$PINGHOST" > "$PING_FILE" &
   fi
   ping_pid=$!
 }
@@ -161,7 +160,7 @@ measure_direction() {
   fi
 
   # Summarize ping data
-  summarize_pings "$PINGFILE"
+  summarize_pings
 }
 
 # ------- Start of the main routine --------
