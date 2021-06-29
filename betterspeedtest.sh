@@ -78,16 +78,16 @@ print_spinner() {
 
 # Stop the current print_spinner() process
 kill_spinner() {
-  kill -9 "$spinner_pid"
-  wait "$spinner_pid" 2>/dev/null
-  spinner_pid=0
+  kill -9 "$SPINNER_PID"
+  wait "$SPINNER_PID" 2>/dev/null
+  SPINNER_PID=0
 }
 
 # Stop the current start_pings() process
 kill_pings() {
-  kill -9 "$ping_pid" 
-  wait "$ping_pid" 2>/dev/null
-  ping_pid=0
+  kill -9 "$PING_PID" 
+  wait "$PING_PID" 2>/dev/null
+  PING_PID=0
 }
 
 # Stop the current pings and dots, and exit
@@ -106,7 +106,7 @@ start_pings() {
 
   # Start spinner
   print_spinner &
-  spinner_pid=$!
+  SPINNER_PID=$!
 
   # Start Ping
   if [ "$TESTPROTO" -eq "-4" ]; then
@@ -114,23 +114,23 @@ start_pings() {
   else
     "${PING6}" "$PINGHOST" > "$PING_FILE" &
   fi
-  ping_pid=$!
+  PING_PID=$!
 }
 
 # Call measure_direction() with single parameter - "Download", "Upload", or "Idle"
 # The function gets other info from globals determined from command-line arguments
 measure_direction() {
-  DIRECTION=$1
+  direction=$1
 
   # Start netperf with the proper direction
-  if [ "$DIRECTION" = "Idle" ]; then
+  if [ "$direction" = "Idle" ]; then
     start_pings
     sleep "$TESTDUR"
   else
-    # Create temp file to store speed data
-    SPEEDFILE=$(mktemp /tmp/netperfUL.XXXXXX) || exit 1
+    # Create temp file to store netperf data
+    NETPERF_FILE=$(mktemp /tmp/netperf.XXXXXX) || exit 1
 
-    if [ "$DIRECTION" = "Download" ]; then
+    if [ "$direction" = "Download" ]; then
       dir="TCP_MAERTS"
     else
       dir="TCP_STREAM"
@@ -140,7 +140,7 @@ measure_direction() {
     # netperf writes the sole output value (in Mbps) to stdout when completed
     netperf_pids=""
     for _ in $( seq "$MAXSESSIONS" ); do
-      netperf "$TESTPROTO" -H "$TESTHOST" -t $dir -l "$TESTDUR" -v 0 -P 0 >> "$SPEEDFILE" &
+      netperf "$TESTPROTO" -H "$TESTHOST" -t $dir -l "$TESTDUR" -v 0 -P 0 >> "$NETPERF_FILE" &
       netperf_pids="${netperf_pids:+${netperf_pids} }$!"
     done
 
@@ -153,10 +153,10 @@ measure_direction() {
     done
 
     # Print speed
-    awk -v dir="$(printf %8.8s "$direction")" '{s+=$1} END {printf " \n%s: %1.2f Mbps\n", dir, s}' < "$speed_file"
+    awk -v dir="$(printf %8.8s "$direction")" '{s+=$1} END {printf " \n%s: %1.2f Mbps\n", dir, s}' < "$NETPERF_FILE"
 
     # Remove temp file
-    rm "$SPEEDFILE"
+    rm "$NETPERF_FILE"
   fi
 
   # Summarize ping data
