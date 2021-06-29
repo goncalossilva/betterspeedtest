@@ -36,20 +36,29 @@ summarize_pings() {
   sed 's/^.*time=\([^ ]*\) ms/\1/' < "$1" | grep -v "PING" | sort -n | \
   awk 'BEGIN {numdrops=0; numrows=0;} \
     { \
-      if ( $0 ~ /timeout/ ) { \
-          numdrops += 1; \
+      if ($0 ~ /timeout/) { \
+        numdrops += 1; \
       } else { \
         numrows += 1; \
-        arr[numrows]=$1; sum+=$1; \
+        arr[numrows] = $1; \
+        sum += $1; \
       } \
     } \
     END { \
       pc10="-"; pc90="-"; med="-"; \
-      if (numrows == 0) {numrows=1} \
-      if (numrows>=10) \
-      {   ix=int(numrows/10); pc10=arr[ix]; ix=int(numrows*9/10);pc90=arr[ix]; \
-        if (numrows%2==1) med=arr[(numrows+1)/2]; else med=(arr[numrows/2]); \
-      }; \
+      if (numrows == 0) { \
+        numrows = 1 \
+      } else if (numrows >= 10) { \
+        ix = int(numrows/10); \
+        pc10 = arr[ix]; \
+        ix = int(numrows*9/10); \
+        pc90 = arr[ix]; \
+        if (numrows%2==1) { \
+          med = arr[(numrows+1)/2];
+        } else { \
+          med = (arr[numrows/2]); \
+        } \
+      } \
       printf(" Latency: (in msec, %d pings, %4.2f%% packet loss)\n     Min: %4.3f \n   10pct: %4.3f \n  Median: %4.3f \n     Avg: %4.3f \n   90pct: %4.3f \n     Max: %4.3f\n", numrows, pktloss, arr[1], pc10, med, sum/numrows, pc90, arr[numrows] )\
      }'
 
