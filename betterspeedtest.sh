@@ -1,12 +1,10 @@
 #!/bin/sh
 
-# betterspeedtest.sh - Script to simulate http://speedtest.net
-# Start pinging, then initiate a download, let it finish, then start an upload
-# Output the measured transfer rates and the resulting ping latency
+# betterspeedtest.sh - Script to measure download/upload speed and latency.
 # It's better than 'speedtest.net' because it measures latency *while* measuring the speed.
-
+#
 # Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [ -i ] [ -n simultaneous-streams ]
-
+#
 # Options: If options are present:
 #
 # -H | --hosts:  comma-separated addresses ofnetperf servers (default: netperf.bufferbloat.net)
@@ -18,6 +16,7 @@
 # -n | --number: Number of simultaneous sessions per host (default: 5 sessions)
 
 # Copyright (c) 2014-2019 - Rich Brown rich.brown@blueberryhillsoftware.com
+# Copyright (c) 2021-2021 - Gonçalo Silva goncalossilva@gmail.com
 # GPLv2
 
 # Summarize the contents of the ping's output file to show min, avg, median, max, etc.
