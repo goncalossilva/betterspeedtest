@@ -76,23 +76,32 @@ print_spinner() {
   done
 }
 
+# Stop the current measure_direction() processes
+kill_netperf() {
+  for pid in $NETPERF_PIDS; do
+    kill -9 "$pid"
+  done
+  for pid in $NETPERF_PIDS; do
+    wait "$pid" 2>/dev/null
+  done
+}
+
 # Stop the current print_spinner() process
 kill_spinner() {
   kill -9 "$SPINNER_PID"
   wait "$SPINNER_PID" 2>/dev/null
-  SPINNER_PID=0
 }
 
 # Stop the current start_pings() process
 kill_pings() {
   kill -9 "$PING_PID" 
   wait "$PING_PID" 2>/dev/null
-  PING_PID=0
 }
 
 # Stop the current pings and dots, and exit
 # ping command catches (and handles) first Ctrl-C, so you have to hit it again...
-kill_pings_and_spinner_and_exit() {
+kill_netperf_and_pings_and_spinner_and_exit() {
+  kill_netperf
   kill_pings
   kill_spinner
   printf "\nStopped\n"
@@ -225,7 +234,7 @@ fi
 DATE=$(date "+%Y-%m-%d %H:%M:%S")
 
 # Catch a Ctl-C and stop the pinging and the print_dots
-trap kill_pings_and_spinner_and_exit HUP INT TERM
+trap kill_netperf_and_pings_and_spinner_and_exit HUP INT TERM
 
 echo "$DATE Testing against $TESTHOSTS ($PROTO) with $MAXSESSIONS sessions while pinging $PINGHOST ($TESTDUR seconds while idle and in each direction)"
 measure_direction "Idle"
