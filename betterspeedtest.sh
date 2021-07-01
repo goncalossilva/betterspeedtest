@@ -118,11 +118,7 @@ start_pings() {
   SPINNER_PID=$!
 
   # Start Ping
-  if [ "$TESTPROTO" -eq "-4" ]; then
-    "${PING4}" "$PINGHOST" > "$PING_FILE" &
-  else
-    "${PING6}" "$PINGHOST" > "$PING_FILE" &
-  fi
+  "${PING}" "$PING_HOST" > "$PING_FILE" &
   PING_PID=$!
 }
 
@@ -134,7 +130,7 @@ measure_direction() {
   # Start netperf with the proper direction
   if [ "$direction" = "Idle" ]; then
     start_pings
-    sleep "$TESTDUR"
+    sleep "$DURATION"
   else
     # Create temp file to store netperf data
     NETPERF_FILE=$(mktemp /tmp/netperf.XXXXXX) || exit 1
@@ -145,13 +141,14 @@ measure_direction() {
       dir="TCP_STREAM"
     fi
 
-    # Start $MAXSESSIONS datastreams between netperf client and the netperf server
+    # Start $SESSIONS datastreams between netperf client and the netperf server
     # netperf writes the sole output value (in Mbps) to stdout when completed
-    netperf_pids=""
-    for host in $(echo "$TESTHOSTS" | sed "s/,/ /g"); do
-      for _ in $( seq "$MAXSESSIONS" ); do
-        netperf "$TESTPROTO" -H "$host" -t $dir -l "$TESTDUR" -v 0 -P 0 >> "$NETPERF_FILE" &
-        netperf_pids="${netperf_pids:+${netperf_pids} }$!"
+    NETPERF_PIDS=""
+    for host in $(echo "$HOSTS" | sed "s/,/ /g"); do
+      for _ in $( seq "$SESSIONS" ); do
+        netperf "$PROTOCOL" -H "$host" -t $dir -l "$DURATION" -v 0 -P 0 >> "$NETPERF_FILE" &
+
+        NETPERF_PIDS="${NETPERF_PIDS:+${NETPERF_PIDS} }$!"
       done
     done
 
@@ -159,7 +156,7 @@ measure_direction() {
     start_pings
     
     # Wait until each of the background netperf processes completes 
-    for pid in $netperf_pids; do
+    for pid in $NETPERF_PIDS; do
       wait "$pid"
     done
 
@@ -174,6 +171,10 @@ measure_direction() {
   summarize_pings
 }
 
+PING4=ping
+command -v ping4 > /dev/null 2>&1 && PING4=ping4
+PING6=ping6
+
 # ------- Start of the main routine --------
 #
 # Usage: sh betterspeedtest.sh [ -4 -6 ] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [ -i ] [ -n simultaneous-sessions ]
@@ -185,58 +186,52 @@ measure_direction() {
 #       5 sessions chosen empirically because total didn't increase much after that number)
 
 # set an initial values for defaults
-TESTHOSTS="netperf.bufferbloat.net"
-TESTDUR="60"
+HOSTS="netperf.bufferbloat.net"
+DURATION="60"
 
-PING4=ping
-command -v ping4 > /dev/null 2>&1 && PING4=ping4
-PING6=ping6
-
-PINGHOST="gstatic.com"
-MAXSESSIONS="5"
-TESTPROTO="-4"
+PING_HOST="gstatic.com"
+SESSIONS="5"
+PROTOCOL="-4"
+PING=PING4
 
 # Extract options and their arguments into variables.
 while [ $# -gt 0 ]; do
     case "$1" in
-      -4|-6) TESTPROTO=$1 ; shift 1 ;;
+      -4|-6)
+          case "$1" in
+            "-4") PROTOCOL="ipv4" ; PING=PING4 ;;
+            "-6") PROTOCOL="ipv6" ; PING=PING6 ;;
+          esac
+          shift 1 ;;
       -H|--hosts)
           case "$2" in
-              "") echo "Missing hostname" ; exit 1 ;;
-              *) TESTHOSTS=$2 ; shift 2 ;;
+            "") echo "Missing hostname" ; exit 1 ;;
+            *) HOSTS=$2 ; shift 2 ;;
           esac ;;
       -t|--time) 
         case "$2" in
-          "") echo "Missing duration" ; exit 1 ;;
-              *) TESTDUR=$2 ; shift 2 ;;
+            "") echo "Missing duration" ; exit 1 ;;
+            *) DURATION=$2 ; shift 2 ;;
           esac ;;
       -p|--ping)
           case "$2" in
-              "") echo "Missing ping host" ; exit 1 ;;
-              *) PINGHOST=$2 ; shift 2 ;;
+            "") echo "Missing ping host" ; exit 1 ;;
+            *) PING_HOST=$2 ; shift 2 ;;
           esac ;;
       -n|--number)
         case "$2" in
           "") echo "Missing number of simultaneous sessions" ; exit 1 ;;
-          *) MAXSESSIONS=$2 ; shift 2 ;;
+          *) SESSIONS=$2 ; shift 2 ;;
         esac ;;
-      --) shift ; break ;;
+        --) shift ; break ;;
         *) echo "Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [ -n simultaneous-sessions ]" ; exit 1 ;;
     esac
 done
 
-# Start the main test
-if [ "$TESTPROTO" -eq "-4" ]; then
-  PROTO="ipv4"
-else
-  PROTO="ipv6"
-fi
-DATE=$(date "+%Y-%m-%d %H:%M:%S")
-
 # Catch a Ctl-C and stop the pinging and the print_dots
 trap kill_netperf_and_pings_and_spinner_and_exit HUP INT TERM
 
-echo "$DATE Testing against $TESTHOSTS ($PROTO) with $MAXSESSIONS sessions while pinging $PINGHOST ($TESTDUR seconds while idle and in each direction)"
+# Start the main test
 measure_direction "Idle"
 measure_direction "Download"
 measure_direction "Upload"
