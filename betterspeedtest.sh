@@ -9,13 +9,13 @@
 
 # Options: If options are present:
 #
-# -H | --host:   DNS or Address of a netperf server (default - netperf.bufferbloat.net)
-#                Alternate servers are netperf-east (east coast US), netperf-west (California), 
-#                and netperf-eu (Denmark)
-# -4 | -6:       enable ipv4 or ipv6 testing (ipv4 is the default)
-# -t | --time:   Duration for how long each direction's test should run - (default - 60 seconds)
-# -p | --ping:   Host to ping to measure latency (default - gstatic.com)
-# -n | --number: Number of simultaneous sessions (default - 5 sessions)
+# -H | --hosts:  comma-separated addresses ofnetperf servers (default: netperf.bufferbloat.net)
+#                Alternate servers include netperf-east.bufferbloat.net (east coast US),
+#                netperf-west.bufferbloat.net (California), and netperf-eu.bufferbloat.net (Denmark)
+# -4 | -6:       enable ipv4 or ipv6 testing (default: ipv4)
+# -t | --time:   Duration for how long each direction's test should run (default:60 seconds)
+# -p | --ping:   Host to ping to measure latency (default: gstatic.com)
+# -n | --number: Number of simultaneous sessions per host (default: 5 sessions)
 
 # Copyright (c) 2014-2019 - Rich Brown rich.brown@blueberryhillsoftware.com
 # GPLv2
@@ -139,9 +139,11 @@ measure_direction() {
     # Start $MAXSESSIONS datastreams between netperf client and the netperf server
     # netperf writes the sole output value (in Mbps) to stdout when completed
     netperf_pids=""
-    for _ in $( seq "$MAXSESSIONS" ); do
-      netperf "$TESTPROTO" -H "$TESTHOST" -t $dir -l "$TESTDUR" -v 0 -P 0 >> "$NETPERF_FILE" &
-      netperf_pids="${netperf_pids:+${netperf_pids} }$!"
+    for host in $(echo "$TESTHOSTS" | sed "s/,/ /g"); do
+      for _ in $( seq "$MAXSESSIONS" ); do
+        netperf "$TESTPROTO" -H "$host" -t $dir -l "$TESTDUR" -v 0 -P 0 >> "$NETPERF_FILE" &
+        netperf_pids="${netperf_pids:+${netperf_pids} }$!"
+      done
     done
 
     # Start off the ping process
@@ -174,7 +176,7 @@ measure_direction() {
 #       5 sessions chosen empirically because total didn't increase much after that number)
 
 # set an initial values for defaults
-TESTHOST="netperf.bufferbloat.net"
+TESTHOSTS="netperf.bufferbloat.net"
 TESTDUR="60"
 
 PING4=ping
@@ -189,10 +191,10 @@ TESTPROTO="-4"
 while [ $# -gt 0 ]; do
     case "$1" in
       -4|-6) TESTPROTO=$1 ; shift 1 ;;
-      -H|--host)
+      -H|--hosts)
           case "$2" in
               "") echo "Missing hostname" ; exit 1 ;;
-              *) TESTHOST=$2 ; shift 2 ;;
+              *) TESTHOSTS=$2 ; shift 2 ;;
           esac ;;
       -t|--time) 
         case "$2" in
@@ -225,7 +227,7 @@ DATE=$(date "+%Y-%m-%d %H:%M:%S")
 # Catch a Ctl-C and stop the pinging and the print_dots
 trap kill_pings_and_spinner_and_exit HUP INT TERM
 
-echo "$DATE Testing against $TESTHOST ($PROTO) with $MAXSESSIONS sessions while pinging $PINGHOST ($TESTDUR seconds while idle and in each direction)"
+echo "$DATE Testing against $TESTHOSTS ($PROTO) with $MAXSESSIONS sessions while pinging $PINGHOST ($TESTDUR seconds while idle and in each direction)"
 measure_direction "Idle"
 measure_direction "Download"
 measure_direction "Upload"
