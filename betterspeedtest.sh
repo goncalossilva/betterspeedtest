@@ -26,6 +26,7 @@ PING6=ping6
 # Defaults.
 HOSTS="netperf.bufferbloat.net"
 DURATION="60"
+IDLE_DURATION="15"
 PING_HOST="gstatic.com"
 SESSIONS="5"
 PROTOCOL="-4"
@@ -49,7 +50,7 @@ run() {
         -t|--time) 
           case "$2" in
               "") echo "Missing duration" ; exit 1 ;;
-              *) DURATION=$2 ; shift 2 ;;
+              *) DURATION=$2 ; IDLE_DURATION=$((DURATION/4 < 10 ? 10 : DURATION/4)) ; shift 2 ;;
             esac ;;
         -p|--ping)
             case "$2" in
@@ -86,7 +87,7 @@ measure_direction() {
 
   # Start netperf with the proper direction
   if [ "$direction" = "Idle" ]; then
-    sleep "$DURATION"
+    sleep "$IDLE_DURATION"
   else
     # Create temp file to store netperf data
     NETPERF_FILE=$(mktemp /tmp/netperf.XXXXXX) || exit 1
@@ -165,8 +166,7 @@ print_ping_data() {
   # Process the ping times, and summarize the results
   # grep to keep lines that have "time=", then sed to isolate the time stamps, and sort them
   # awk builds an array of those values, and prints first & last (which are min, max) 
-  # and computes average.
-  # If the number of samples is >= 10, also computes median, and 10th and 90th percentile readings
+  # and computes average, median, 10th and 90th percentile.
 
   # shellcheck disable=SC1004
   sed 's/^.*time=\([^ ]*\) ms/\1/' < "$PING_FILE" | grep -v "PING" | sort -n | \
@@ -184,7 +184,7 @@ print_ping_data() {
       pc10="-"; pc90="-"; med="-"; \
       if (numrows == 0) { \
         numrows = 1 \
-      } else if (numrows >= 10) { \
+      } else { \
         ix = int(numrows/10); \
         pc10 = arr[ix]; \
         ix = int(numrows*9/10); \
