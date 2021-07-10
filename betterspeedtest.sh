@@ -9,20 +9,19 @@
 #
 # Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server(s) ] [ -t duration ] [ -p host-to-ping ] [ -n streams ] [ -o format ] [--idle --download --upload]
 #
-# Options: If options are present:
-#
-# -H | --hosts:  Comma-separated addresses ofnetperf servers (default: netperf.bufferbloat.net)
+# Options:
+# -H | --hosts:  Comma-separated addresses of netperf servers (default: netperf.bufferbloat.net).
 #                Alternate servers include netperf-east.bufferbloat.net (east coast US),
-#                netperf-west.bufferbloat.net (California), and netperf-eu.bufferbloat.net (Denmark)
-# -4 | -6:       Enable ipv4 or ipv6 testing (default: ipv4)
-# -t | --time:   Duration for how long each direction's test should run (default: 60 seconds)
-# -p | --ping:   Host to ping to measure latency (default: gstatic.com)
-# -n | --number: Number of simultaneous sessions per host (default: 5 sessions)
-# -o | --format: Output format (default: plain)
-#                Available options are plain, yaml or prometheus
-# --idle:        Only measure idle latency
-# --download:    Only measure download speed and latency
-# --upload:      Only measure upload speed and latency
+#                netperf-west.bufferbloat.net (California), and netperf-eu.bufferbloat.net (Denmark).
+# -4 | -6:       Enable ipv4 or ipv6 testing (default: ipv4).
+# -t | --time:   Duration for how long each direction's test should run (default: 60 seconds).
+# -p | --ping:   Host to ping to measure latency (default: gstatic.com).
+# -n | --number: Number of simultaneous sessions per host (default: 5 sessions).
+# -o | --format: Output format (default: plain).
+#                Available options are plain, yaml or prometheus.
+# --idle:        Only measure idle latency.
+# --download:    Only measure download speed and latency.
+# --upload:      Only measure upload speed and latency.
 
 PING4=ping
 command -v ping4 >/dev/null 2>&1 && PING4=ping4
