@@ -1,7 +1,6 @@
 # betterspeedtest
 
-Tests the performance of an internet connection by measuring download and upload speeds, as well as
-latency while idle, downloading, and uploading.
+Tests the performance of an internet connection by measuring download and upload speeds, as well as latency while idle, downloading, and uploading. Relies on [`netperf`](https://github.com/HewlettPackard/netperf) and `ping`.
 
 ## Usage 
 
