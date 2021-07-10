@@ -47,7 +47,7 @@ run() {
               "") echo "Missing hostname" ; exit 1 ;;
               *) HOSTS=$2 ; shift 2 ;;
             esac ;;
-        -t|--time) 
+        -t|--time)
           case "$2" in
               "") echo "Missing duration" ; exit 1 ;;
               *) DURATION=$2 ; IDLE_DURATION=$((DURATION/4 < 10 ? 10 : DURATION/4)) ; shift 2 ;;
@@ -62,8 +62,8 @@ run() {
             "") echo "Missing number of simultaneous sessions" ; exit 1 ;;
             *) SESSIONS=$2 ; shift 2 ;;
           esac ;;
-          --) shift ; break ;;
-          *) echo "Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [ -n simultaneous-sessions ]" ; exit 1 ;;
+        --) shift ; break ;;
+        *) echo "Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [ -n simultaneous-sessions ]" ; exit 1 ;;
       esac
   done
 
@@ -230,7 +230,7 @@ kill_spinner() {
 
 # Stop the current start_pings() process
 kill_pings() {
-  kill -9 "$PING_PID" 
+  kill -9 "$PING_PID"
   wait "$PING_PID" 2>/dev/null
 }
 
