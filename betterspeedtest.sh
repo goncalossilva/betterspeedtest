@@ -22,7 +22,7 @@
 #                Options are plain, yaml or prometheus
 
 PING4=ping
-command -v ping4 > /dev/null 2>&1 && PING4=ping4
+command -v ping4 >/dev/null 2>&1 && PING4=ping4
 PING6=ping6
 
 # Defaults.
@@ -38,41 +38,90 @@ FORMAT="plain"
 run() {
   # Extract options and their arguments into variables.
   while [ $# -gt 0 ]; do
+    case "$1" in
+    -4 | -6)
       case "$1" in
-        -4|-6)
-            case "$1" in
-              "-4") PROTOCOL="ipv4" ; PING=$PING4 ;;
-              "-6") PROTOCOL="ipv6" ; PING=$PING6 ;;
-            esac
-            shift 1 ;;
-        -H|--hosts)
-            case "$2" in
-              "") echo "Missing hostname" ; exit 1 ;;
-              *) HOSTS=$2 ; shift 2 ;;
-            esac ;;
-        -t|--time)
-          case "$2" in
-              "") echo "Missing duration" ; exit 1 ;;
-              *) DURATION=$2 ; IDLE_DURATION=$((DURATION/4 < 10 ? 10 : DURATION/4)) ; shift 2 ;;
-            esac ;;
-        -p|--ping)
-            case "$2" in
-              "") echo "Missing ping host" ; exit 1 ;;
-              *) PING_HOST=$2 ; shift 2 ;;
-            esac ;;
-        -n|--number)
-          case "$2" in
-            "") echo "Missing number of simultaneous sessions" ; exit 1 ;;
-            *) SESSIONS=$2 ; shift 2 ;;
-          esac ;;
-        -o|--format)
-          case "$2" in
-            "") echo "Missing output format" ; exit 1 ;;
-            *) FORMAT=$2 ; shift 2 ;;
-          esac ;;
-        --) shift ; break ;;
-        *) echo "Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [ -n simultaneous-sessions ] [ -o format ]" ; exit 1 ;;
+      "-4")
+        PROTOCOL="ipv4"
+        PING=$PING4
+        ;;
+      "-6")
+        PROTOCOL="ipv6"
+        PING=$PING6
+        ;;
       esac
+      shift 1
+      ;;
+    -H | --hosts)
+      case "$2" in
+      "")
+        echo "Missing hostname"
+        exit 1
+        ;;
+      *)
+        HOSTS=$2
+        shift 2
+        ;;
+      esac
+      ;;
+    -t | --time)
+      case "$2" in
+      "")
+        echo "Missing duration"
+        exit 1
+        ;;
+      *)
+        DURATION=$2
+        IDLE_DURATION=$((DURATION / 4 < 10 ? 10 : DURATION / 4))
+        shift 2
+        ;;
+      esac
+      ;;
+    -p | --ping)
+      case "$2" in
+      "")
+        echo "Missing ping host"
+        exit 1
+        ;;
+      *)
+        PING_HOST=$2
+        shift 2
+        ;;
+      esac
+      ;;
+    -n | --number)
+      case "$2" in
+      "")
+        echo "Missing number of simultaneous sessions"
+        exit 1
+        ;;
+      *)
+        SESSIONS=$2
+        shift 2
+        ;;
+      esac
+      ;;
+    -o | --format)
+      case "$2" in
+      "")
+        echo "Missing output format"
+        exit 1
+        ;;
+      *)
+        FORMAT=$2
+        shift 2
+        ;;
+      esac
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      echo "Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [ -n simultaneous-sessions ] [ -o format ]"
+      exit 1
+      ;;
+    esac
   done
 
   # Catch a Ctl-C and stop the pinging and the print_dots
@@ -92,7 +141,7 @@ measure_direction() {
 
   # Create temp file to store netperf data
   NETPERF_FILE=$(mktemp /tmp/netperf.XXXXXX) || exit 1
-  echo "$direction" > "$NETPERF_FILE"
+  echo "$direction" >"$NETPERF_FILE"
 
   # Start off the ping process
   start_pings
@@ -110,8 +159,8 @@ measure_direction() {
     fi
     NETPERF_PIDS=""
     for host in $(echo "$HOSTS" | sed "s/,/ /g"); do
-      for _ in $( seq "$SESSIONS" ); do
-        netperf "$PROTOCOL" -H "$host" -t $testname -l "$DURATION" -v 0 -P 0 >> "$NETPERF_FILE" &
+      for _ in $(seq "$SESSIONS"); do
+        netperf "$PROTOCOL" -H "$host" -t $testname -l "$DURATION" -v 0 -P 0 >>"$NETPERF_FILE" &
 
         NETPERF_PIDS="${NETPERF_PIDS:+${NETPERF_PIDS} }$!"
       done
@@ -147,7 +196,7 @@ start_pings() {
   SPINNER_PID=$!
 
   # Start ping
-  "${PING}" "$PING_HOST" > "$PING_FILE" &
+  "${PING}" "$PING_HOST" >"$PING_FILE" &
   PING_PID=$!
 }
 
@@ -169,10 +218,10 @@ process_pings() {
   #
   # shellcheck disable=SC1004
   pingdata="$(
-    sed 's/^.*time=\([^ ]*\) ms/\1/' < "$PING_FILE" | \
-    grep -v "PING" | \
-    sort -n | \
-    awk 'BEGIN {pdropcount=0; pcount=0; pmin=0; pp10=0; pmed=0; pavg=0; pp90=0; pmax=0; psum=0;} \
+    sed 's/^.*time=\([^ ]*\) ms/\1/' <"$PING_FILE" |
+      grep -v "PING" |
+      sort -n |
+      awk 'BEGIN {pdropcount=0; pcount=0; pmin=0; pp10=0; pmed=0; pavg=0; pp90=0; pmax=0; psum=0;} \
       { \
         if ($0 ~ /timeout/) { \
           pdropcount += 1; \
@@ -196,8 +245,8 @@ process_pings() {
         ploss = pdropcount/(pdropcount+pcount)*100; \
         printf("%d %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f", pcount, ploss, pmin, pp10, pmed, pavg, pp90, pmax, psum) \
       }'
-    )"
-    echo "$pingdata" > "$PING_FILE"
+  )"
+  echo "$pingdata" >"$PING_FILE"
 }
 
 # Process speed, and summarize the results.
@@ -208,13 +257,13 @@ process_netperf() {
   if [ -n "$nspeeds" ]; then
     netperfdata="$netperfdata $(echo "$nspeeds" | awk '{speed+=$1} END {printf("%1.2f", speed)}')"
   fi
-  echo "$netperfdata" > "$NETPERF_FILE"
+  echo "$netperfdata" >"$NETPERF_FILE"
 }
 
 # Print speed and ping data.
 print_summary() {
-  read -r ndirection nspeed < "$NETPERF_FILE"
-  read -r pcount ploss pmin pp10 pmed pavg pp90 pmax psum < "$PING_FILE"
+  read -r ndirection nspeed <"$NETPERF_FILE"
+  read -r pcount ploss pmin pp10 pmed pavg pp90 pmax psum <"$PING_FILE"
 
   case "$FORMAT" in
   "yaml")
