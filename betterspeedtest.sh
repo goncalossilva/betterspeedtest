@@ -125,7 +125,7 @@ run() {
   done
 
   # Catch a Ctl-C and stop the pinging and the print_dots
-  trap kill_netperf_and_pings_and_spinner_and_exit HUP INT TERM
+  trap kill_netperf_and_pings_and_exit HUP INT TERM
 
   # Start the main test
   measure_direction "idle"
@@ -172,9 +172,8 @@ measure_direction() {
     done
   fi
 
-  # Stop pinging and spinner
+  # Stop pinging
   kill_pings
-  kill_spinner
 
   # Process and summarize ping and netperf data
   process_pings
@@ -191,23 +190,9 @@ start_pings() {
   # Create temp file
   PING_FILE=$(mktemp /tmp/ping.XXXXXX) || exit 1
 
-  # Start spinner
-  print_spinner &
-  SPINNER_PID=$!
-
   # Start ping
   "${PING}" "$PING_HOST" >"$PING_FILE" &
   PING_PID=$!
-}
-
-# Print a spinner as a progress indicator.
-print_spinner() {
-  while true; do
-    for c in / - \\ \|; do
-      printf "%s\b" "$c"
-      sleep 1
-    done
-  done
 }
 
 # Process the ping times, and summarize the results in the file
@@ -304,10 +289,9 @@ print_summary() {
 
 # Stop the current pings and dots, and exit
 # ping command catches (and handles) first Ctrl-C, so you have to hit it again...
-kill_netperf_and_pings_and_spinner_and_exit() {
+kill_netperf_and_pings_and_exit() {
   kill_netperf
   kill_pings
-  kill_spinner
   printf "\nStopped\n"
   exit 1
 }
@@ -320,12 +304,6 @@ kill_netperf() {
   for pid in $NETPERF_PIDS; do
     wait "$pid" 2>/dev/null
   done
-}
-
-# Stop the current print_spinner() process
-kill_spinner() {
-  kill -9 "$SPINNER_PID"
-  wait "$SPINNER_PID" 2>/dev/null
 }
 
 # Stop the current start_pings() process
