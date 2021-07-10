@@ -7,19 +7,22 @@
 # betterspeedtest.sh - Script to measure download/upload speed and latency.
 # It's better than 'speedtest.net' because it measures latency *while* measuring the speed.
 #
-# Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server(s) ] [ -t duration ] [ -p host-to-ping ] [ -n streams ] [ -o format ]
+# Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server(s) ] [ -t duration ] [ -p host-to-ping ] [ -n streams ] [ -o format ] [--idle --download --upload]
 #
 # Options: If options are present:
 #
-# -H | --hosts:  comma-separated addresses ofnetperf servers (default: netperf.bufferbloat.net)
+# -H | --hosts:  Comma-separated addresses ofnetperf servers (default: netperf.bufferbloat.net)
 #                Alternate servers include netperf-east.bufferbloat.net (east coast US),
 #                netperf-west.bufferbloat.net (California), and netperf-eu.bufferbloat.net (Denmark)
-# -4 | -6:       enable ipv4 or ipv6 testing (default: ipv4)
+# -4 | -6:       Enable ipv4 or ipv6 testing (default: ipv4)
 # -t | --time:   Duration for how long each direction's test should run (default: 60 seconds)
 # -p | --ping:   Host to ping to measure latency (default: gstatic.com)
 # -n | --number: Number of simultaneous sessions per host (default: 5 sessions)
 # -o | --format: Output format (default: plain)
-#                Options are plain, yaml or prometheus
+#                Available options are plain, yaml or prometheus
+# --idle:        Only measure idle latency
+# --download:    Only measure download speed and latency
+# --upload:      Only measure upload speed and latency
 
 PING4=ping
 command -v ping4 >/dev/null 2>&1 && PING4=ping4
@@ -34,6 +37,7 @@ IDLE_DURATION="15"
 PING_HOST="gstatic.com"
 SESSIONS="5"
 FORMAT="plain"
+DIRECTIONS=""
 
 run() {
   # Extract options and their arguments into variables.
@@ -113,6 +117,10 @@ run() {
         ;;
       esac
       ;;
+    --idle | --download | --upload)
+      DIRECTIONS="${DIRECTIONS:+${DIRECTIONS} }$(echo "$1" | tr -d '-')"
+      shift 1
+      ;;
     --)
       shift
       break
@@ -128,9 +136,15 @@ run() {
   trap kill_netperf_and_pings_and_exit HUP INT TERM
 
   # Start the main test
-  measure_direction "idle"
-  measure_direction "download"
-  measure_direction "upload"
+  if [ -z "$DIRECTIONS" ]; then
+    measure_direction "idle"
+    measure_direction "download"
+    measure_direction "upload"
+  else
+    for direction in $DIRECTIONS; do
+      measure_direction "$direction"
+    done
+  fi
 }
 
 # Measure speed (if not idle) and latency.
