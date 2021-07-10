@@ -7,7 +7,7 @@
 # betterspeedtest.sh - Script to measure download/upload speed and latency.
 # It's better than 'speedtest.net' because it measures latency *while* measuring the speed.
 #
-# Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server(s) ] [ -t duration ] [ -p host-to-ping ] [ -i ] [ -n streams ]
+# Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server(s) ] [ -t duration ] [ -p host-to-ping ] [ -n streams ] [ -o format ]
 #
 # Options: If options are present:
 #
@@ -18,19 +18,22 @@
 # -t | --time:   Duration for how long each direction's test should run (default: 60 seconds)
 # -p | --ping:   Host to ping to measure latency (default: gstatic.com)
 # -n | --number: Number of simultaneous sessions per host (default: 5 sessions)
+# -o | --format: Output format (default: plain)
+#                Options are plain, yaml or prometheus
 
 PING4=ping
 command -v ping4 > /dev/null 2>&1 && PING4=ping4
 PING6=ping6
 
 # Defaults.
+PROTOCOL="-4"
 HOSTS="netperf.bufferbloat.net"
+PING=$PING4
 DURATION="60"
 IDLE_DURATION="15"
 PING_HOST="gstatic.com"
 SESSIONS="5"
-PROTOCOL="-4"
-PING=$PING4
+FORMAT="plain"
 
 run() {
   # Extract options and their arguments into variables.
@@ -62,8 +65,13 @@ run() {
             "") echo "Missing number of simultaneous sessions" ; exit 1 ;;
             *) SESSIONS=$2 ; shift 2 ;;
           esac ;;
+        -o|--format)
+          case "$2" in
+            "") echo "Missing output format" ; exit 1 ;;
+            *) FORMAT=$2 ; shift 2 ;;
+          esac ;;
         --) shift ; break ;;
-        *) echo "Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [ -n simultaneous-sessions ]" ; exit 1 ;;
+        *) echo "Usage: sh betterspeedtest.sh [-4 -6] [ -H netperf-server ] [ -t duration ] [ -p host-to-ping ] [ -n simultaneous-sessions ] [ -o format ]" ; exit 1 ;;
       esac
   done
 
@@ -71,13 +79,13 @@ run() {
   trap kill_netperf_and_pings_and_spinner_and_exit HUP INT TERM
 
   # Start the main test
-  measure_direction "Idle"
-  measure_direction "Download"
-  measure_direction "Upload"
+  measure_direction "idle"
+  measure_direction "download"
+  measure_direction "upload"
 }
 
 # Measure speed (if not idle) and latency.
-# Call measure_direction() with single parameter - "Download", "Upload", or "Idle".
+# Call measure_direction() with single parameter - "idle", "download", or "upload".
 # The function gets other info from globals determined from command-line arguments.
 measure_direction() {
   direction=$1
@@ -90,12 +98,12 @@ measure_direction() {
   start_pings
 
   # Start netperf with the proper direction
-  if [ "$direction" = "Idle" ]; then
+  if [ "$direction" = "idle" ]; then
     sleep "$IDLE_DURATION"
   else
     # Start $SESSIONS datastreams between netperf client and the netperf server
     # netperf writes the sole output value (in Mbps) to stdout when completed
-    if [ "$direction" = "Download" ]; then
+    if [ "$direction" = "download" ]; then
       testname="TCP_MAERTS"
     else
       testname="TCP_STREAM"
@@ -123,6 +131,10 @@ measure_direction() {
   process_pings
   process_netperf
   print_summary
+
+  # Cleanup
+  rm "$PING_FILE"
+  rm "$NETPERF_FILE"
 }
 
 # Start printing dots, then start a ping process, saving the results to PING_FILE.
@@ -160,14 +172,14 @@ process_pings() {
     sed 's/^.*time=\([^ ]*\) ms/\1/' < "$PING_FILE" | \
     grep -v "PING" | \
     sort -n | \
-    awk 'BEGIN {pdropcount=0; pcount=0; pmin=0; pp10=0; pmed=0; pavg=0; pp90=0; pmax=0;} \
+    awk 'BEGIN {pdropcount=0; pcount=0; pmin=0; pp10=0; pmed=0; pavg=0; pp90=0; pmax=0; psum=0;} \
       { \
         if ($0 ~ /timeout/) { \
           pdropcount += 1; \
         } else { \
           pcount += 1; \
           arr[pcount] = $1; \
-          sum += $1; \
+          psum += $1; \
         } \
       } \
       END { \
@@ -177,12 +189,12 @@ process_pings() {
           pmin = arr[1]; \
           pp10 = arr[int(pcount/10)]; \
           pmed = pcount%2==1 ? arr[(pcount+1)/2] : arr[pcount/2]; \
-          pavg = sum/pcount; \
+          pavg = psum/pcount; \
           pp90 = arr[int(pcount*9/10)]; \
           pmax = arr[pcount]; \
         } \
         ploss = pdropcount/(pdropcount+pcount)*100; \
-        printf("%d %4.2f %4.2f %4.2f %4.2f %4.2f %4.2f %4.2f", pcount, ploss, pmin, pp10, pmed, pavg, pp90, pmax) \
+        printf("%d %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f %4.1f", pcount, ploss, pmin, pp10, pmed, pavg, pp90, pmax, psum) \
       }'
     )"
     echo "$pingdata" > "$PING_FILE"
@@ -202,15 +214,43 @@ process_netperf() {
 # Print speed and ping data.
 print_summary() {
   read -r ndirection nspeed < "$NETPERF_FILE"
-  read -r pcount ploss pmin pp10 pmed pavg pp90 pmax < "$PING_FILE"
+  read -r pcount ploss pmin pp10 pmed pavg pp90 pmax psum < "$PING_FILE"
 
-  # TODO: Add support for CSV and Prometheus.
-  if [ -n "$nspeed" ]; then
-    printf "\n%8.8s: %1.2f Mbps\n" "$ndirection" "$nspeed"
-  else
-    printf "\n%8.8s\n" "$ndirection"
-  fi
-  printf " Latency: (in msec, %d pings, %4.2f%% packet loss)\n     Min: %4.2f \n   10pct: %4.2f \n  Median: %4.2f \n     Avg: %4.2f \n   90pct: %4.2f \n     Max: %4.2f\n" "$pcount" "$ploss" "$pmin" "$pp10" "$pmed" "$pavg" "$pp90" "$pmax"
+  case "$FORMAT" in
+  "yaml")
+    printf "%s:\n" "$ndirection"
+    if [ -n "$nspeed" ]; then
+      printf "  speed: %4.1f\n" "$nspeed"
+    fi
+    printf "  ping-count: %d\n" "$pcount"
+    printf "  ping-loss: %3.1f\n" "$ploss"
+    printf "  ping-min: %4.1f\n" "$pmin"
+    printf "  ping-p10: %4.1f\n" "$pp10"
+    printf "  ping-med: %4.1f\n" "$pmed"
+    printf "  ping-avg: %4.1f\n" "$pavg"
+    printf "  ping-p90: %4.1f\n" "$pp90"
+    printf "  ping-max: %4.1f\n" "$pmax"
+    ;;
+  "prometheus")
+    if [ -n "$nspeed" ]; then
+      printf "%s_speed: %4.1f\n" "$direction" "$nspeed"
+    fi
+    printf "%s_ping_count: %d\n" "$direction" "$pcount"
+    printf "%s_ping_sum: %4.1f\n" "$direction" "$psum"
+    printf "%s_ping_min: %4.1f\n" "$direction" "$pmin"
+    printf "%s_ping{quantile=\"0.1\"} %4.1f\n" "$direction" "$pp10"
+    printf "%s_ping{quantile=\"0.5\"} %4.1f\n" "$direction" "$pmed"
+    printf "%s_ping{quantile=\"0.9\"} %4.1f\n" "$direction" "$pp90"
+    printf "%s_ping_max: %4.1f\n" "$direction" "$pmax"
+    ;;
+  *)
+    printf " \n%8.8s" "$(echo "$ndirection" | awk '{$0=toupper(substr($0,1,1))substr($0,2); print}')"
+    if [ -n "$nspeed" ]; then
+      printf ": %1.1f Mbps" "$nspeed"
+    fi
+    printf "\n Latency: (msec, %d pings, %3.1f%% loss)\n     Min: %4.1f \n   10pct: %4.1f \n  Median: %4.1f \n     Avg: %4.1f \n   90pct: %4.1f \n     Max: %4.1f\n" "$pcount" "$ploss" "$pmin" "$pp10" "$pmed" "$pavg" "$pp90" "$pmax"
+    ;;
+  esac
 }
 
 # Stop the current pings and dots, and exit
