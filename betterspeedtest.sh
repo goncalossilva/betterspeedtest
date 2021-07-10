@@ -82,6 +82,10 @@ run() {
 measure_direction() {
   direction=$1
 
+  # Create temp file to store netperf data
+  NETPERF_FILE=$(mktemp /tmp/netperf.XXXXXX) || exit 1
+  echo "$direction" > "$NETPERF_FILE"
+
   # Start off the ping process
   start_pings
 
@@ -89,17 +93,13 @@ measure_direction() {
   if [ "$direction" = "Idle" ]; then
     sleep "$IDLE_DURATION"
   else
-    # Create temp file to store netperf data
-    NETPERF_FILE=$(mktemp /tmp/netperf.XXXXXX) || exit 1
-
+    # Start $SESSIONS datastreams between netperf client and the netperf server
+    # netperf writes the sole output value (in Mbps) to stdout when completed
     if [ "$direction" = "Download" ]; then
       testname="TCP_MAERTS"
     else
       testname="TCP_STREAM"
     fi
-
-    # Start $SESSIONS datastreams between netperf client and the netperf server
-    # netperf writes the sole output value (in Mbps) to stdout when completed
     NETPERF_PIDS=""
     for host in $(echo "$HOSTS" | sed "s/,/ /g"); do
       for _ in $( seq "$SESSIONS" ); do
@@ -108,8 +108,8 @@ measure_direction() {
         NETPERF_PIDS="${NETPERF_PIDS:+${NETPERF_PIDS} }$!"
       done
     done
-    
-    # Wait until each of the background netperf processes completes 
+
+    # Wait until each of the background netperf processes completes
     for pid in $NETPERF_PIDS; do
       wait "$pid"
     done
@@ -119,9 +119,10 @@ measure_direction() {
   kill_pings
   kill_spinner
 
-  # Summarize speed and ping data
-  print_speed_data "$direction"
-  print_ping_data
+  # Process and summarize ping and netperf data
+  process_pings
+  process_netperf
+  print_summary
 }
 
 # Start printing dots, then start a ping process, saving the results to PING_FILE.
@@ -148,58 +149,68 @@ print_spinner() {
   done
 }
 
-# Print the contents of the netperf's output file.
-print_speed_data() {
-  direction=$(printf %8.8s "$1")
-
-  if [ -f "$NETPERF_FILE" ]; then
-    awk -v testname="$direction" '{s+=$1} END {printf " \n%s: %1.2f Mbps\n", testname, s}' < "$NETPERF_FILE"
-
-    rm "$NETPERF_FILE"
-  else
-    printf " \n%s\n" "$direction"
-  fi
-}
-
-# Summarize the contents of ping's output file to show min, avg, median, max, etc.
-print_ping_data() {     
-  # Process the ping times, and summarize the results
+# Process the ping times, and summarize the results in the file
+process_pings() {
   # grep to keep lines that have "time=", then sed to isolate the time stamps, and sort them
-  # awk builds an array of those values, and prints first & last (which are min, max) 
+  # awk builds an array of those values, and captures stores first & last (which are min, max)
   # and computes average, median, 10th and 90th percentile.
-
+  #
   # shellcheck disable=SC1004
-  sed 's/^.*time=\([^ ]*\) ms/\1/' < "$PING_FILE" | grep -v "PING" | sort -n | \
-  awk 'BEGIN {numdrops=0; numrows=0;} \
-    { \
-      if ($0 ~ /timeout/) { \
-        numdrops += 1; \
-      } else { \
-        numrows += 1; \
-        arr[numrows] = $1; \
-        sum += $1; \
-      } \
-    } \
-    END { \
-      pc10="-"; pc90="-"; med="-"; \
-      if (numrows == 0) { \
-        numrows = 1 \
-      } else { \
-        ix = int(numrows/10); \
-        pc10 = arr[ix]; \
-        ix = int(numrows*9/10); \
-        pc90 = arr[ix]; \
-        if (numrows%2==1) { \
-          med = arr[(numrows+1)/2];
+  pingdata="$(
+    sed 's/^.*time=\([^ ]*\) ms/\1/' < "$PING_FILE" | \
+    grep -v "PING" | \
+    sort -n | \
+    awk 'BEGIN {pdropcount=0; pcount=0; pmin=0; pp10=0; pmed=0; pavg=0; pp90=0; pmax=0;} \
+      { \
+        if ($0 ~ /timeout/) { \
+          pdropcount += 1; \
         } else { \
-          med = (arr[numrows/2]); \
+          pcount += 1; \
+          arr[pcount] = $1; \
+          sum += $1; \
         } \
       } \
-      printf(" Latency: (in msec, %d pings, %4.2f%% packet loss)\n     Min: %4.3f \n   10pct: %4.3f \n  Median: %4.3f \n     Avg: %4.3f \n   90pct: %4.3f \n     Max: %4.3f\n", numrows, pktloss, arr[1], pc10, med, sum/numrows, pc90, arr[numrows] )\
-     }'
+      END { \
+        if (pcount == 0) { \
+          pcount = 1 \
+        } else { \
+          pmin = arr[1]; \
+          pp10 = arr[int(pcount/10)]; \
+          pmed = pcount%2==1 ? arr[(pcount+1)/2] : arr[pcount/2]; \
+          pavg = sum/pcount; \
+          pp90 = arr[int(pcount*9/10)]; \
+          pmax = arr[pcount]; \
+        } \
+        ploss = pdropcount/(pdropcount+pcount)*100; \
+        printf("%d %4.2f %4.2f %4.2f %4.2f %4.2f %4.2f %4.2f", pcount, ploss, pmin, pp10, pmed, pavg, pp90, pmax) \
+      }'
+    )"
+    echo "$pingdata" > "$PING_FILE"
+}
 
-  # and finally remove the PING_FILE
-  rm "$PING_FILE"
+# Process speed, and summarize the results.
+process_netperf() {
+  # Read direction from first line then sum netperf speed data.
+  netperfdata="$(head -n 1 "$NETPERF_FILE")"
+  nspeeds="$(tail -n +2 "$NETPERF_FILE")"
+  if [ -n "$nspeeds" ]; then
+    netperfdata="$netperfdata $(echo "$nspeeds" | awk '{speed+=$1} END {printf("%1.2f", speed)}')"
+  fi
+  echo "$netperfdata" > "$NETPERF_FILE"
+}
+
+# Print speed and ping data.
+print_summary() {
+  read -r ndirection nspeed < "$NETPERF_FILE"
+  read -r pcount ploss pmin pp10 pmed pavg pp90 pmax < "$PING_FILE"
+
+  # TODO: Add support for CSV and Prometheus.
+  if [ -n "$nspeed" ]; then
+    printf "\n%8.8s: %1.2f Mbps\n" "$ndirection" "$nspeed"
+  else
+    printf "\n%8.8s\n" "$ndirection"
+  fi
+  printf " Latency: (in msec, %d pings, %4.2f%% packet loss)\n     Min: %4.2f \n   10pct: %4.2f \n  Median: %4.2f \n     Avg: %4.2f \n   90pct: %4.2f \n     Max: %4.2f\n" "$pcount" "$ploss" "$pmin" "$pp10" "$pmed" "$pavg" "$pp90" "$pmax"
 }
 
 # Stop the current pings and dots, and exit
