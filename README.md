@@ -19,9 +19,9 @@ Options:
 
 ### Dockerfile
 
-A containerized version can also be built using `Dockerfile`, and ran like so:
+A containerized version can be built using `Dockerfile`, and ran like so:
 
-`docker run -e ARGS="-H netperf-eu.bufferbloat.net -t 15" betterspeedtest`
+`docker run betterspeedtest -H netperf-eu.bufferbloat.net -t 15`
 
 ## Acknowledgements 
 

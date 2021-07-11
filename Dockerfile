@@ -1,6 +1,5 @@
 FROM alpine:3.12
 
-ENV ARGS=
 ARG NETPERF_VERSION=2.7.0
 
 WORKDIR /tmp
@@ -22,4 +21,4 @@ WORKDIR /app
 COPY betterspeedtest.sh /app/betterspeedtest
 RUN chmod +x /app/betterspeedtest
 
-CMD /app/betterspeedtest $ARGS
+ENTRYPOINT [ "/app/betterspeedtest.sh" ]
