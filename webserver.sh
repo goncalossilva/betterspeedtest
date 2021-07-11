@@ -6,7 +6,13 @@
 
 PORT="${PORT:-4000}"
 echo "Listening on port $PORT..."
+
+mkfifo /tmp/pipe
 while true; do
-  # shellcheck disable=SC2068
-  printf "HTTP/1.1 200 OK\n\n%s\n" "$(./betterspeedtest.sh $@)" | nc -l -p "$PORT"
+  # shellcheck disable=SC2094
+  {
+    read -r _ </tmp/pipe
+    # shellcheck disable=SC2068
+    printf "HTTP/1.1 200 OK\r\n\r\n%s" "$(./betterspeedtest.sh $@)"
+  } | nc -l -p "$PORT" >/tmp/pipe
 done
