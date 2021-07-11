@@ -23,6 +23,12 @@ A containerized version can be built using `Dockerfile`, and ran like so:
 
 `docker run betterspeedtest -H netperf-eu.bufferbloat.net -t 15`
 
+#### Webserver
+
+Within the containerized version there is a simple netcat server that tests the performance on demand. It can be started like so:
+
+`docker run --entrypoint /app/webserver.sh betterspeedtest -H netperf-eu.bufferbloat.net -t 15`
+
 ## Acknowledgements 
 
 This is a heavily modified copy of [richb-hanover/OpenWrtScripts's betterspeedtest.sh](https://github.com/richb-hanover/OpenWrtScripts/blob/master/betterspeedtest.sh).

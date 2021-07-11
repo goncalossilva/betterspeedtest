@@ -18,7 +18,8 @@ RUN apk --update add wget build-base bash && \
     rm -vrf /var/cache/apk/*
 
 WORKDIR /app
-COPY betterspeedtest.sh /app/betterspeedtest
-RUN chmod +x /app/betterspeedtest
+COPY betterspeedtest.sh /app/betterspeedtest.sh
+COPY webserver.sh /app/webserver.sh
+RUN chmod +x /app/betterspeedtest.sh /app/webserver.sh
 
 ENTRYPOINT [ "/app/betterspeedtest.sh" ]
