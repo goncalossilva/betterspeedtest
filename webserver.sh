@@ -7,7 +7,7 @@
 PORT="${PORT:-4000}"
 echo "Listening on port $PORT..."
 
-mkfifo /tmp/pipe
+rm -f /tmp/pipe && mkfifo /tmp/pipe
 while true; do
   # shellcheck disable=SC2094
   {
