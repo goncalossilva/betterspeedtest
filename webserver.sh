@@ -12,7 +12,8 @@ while true; do
   # shellcheck disable=SC2094
   {
     read -r _ </tmp/pipe
+    printf "HTTP/1.1 200 OK\r\n\r\n"
     # shellcheck disable=SC2068
-    printf "HTTP/1.1 200 OK\r\n\r\n%s" "$(./betterspeedtest.sh $@)"
+    ./betterspeedtest.sh $@
   } | nc -l -p "$PORT" >/tmp/pipe
 done
