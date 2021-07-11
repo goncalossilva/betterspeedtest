@@ -22,4 +22,4 @@ COPY betterspeedtest.sh /app/betterspeedtest.sh
 COPY webserver.sh /app/webserver.sh
 RUN chmod +x /app/betterspeedtest.sh /app/webserver.sh
 
-ENTRYPOINT [ "/app/betterspeedtest.sh" ]
+CMD /app/betterspeedtest.sh
